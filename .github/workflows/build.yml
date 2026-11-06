@@ -32,9 +32,8 @@ jobs:
 
         # 3. Компилируем нашу обёртку и линкуем с Manifold
         em++ manifold_bindings.cpp \
-          -I manifold/src \
-          -I manifold/build \
-          -L manifold/build \
+          -I manifold/include \
+          -L manifold/build/src \
           -l manifold \
           -o my-kernel.js \
           -std=c++17 \
@@ -43,6 +42,7 @@ jobs:
           -s MODULARIZE=1 \
           -s EXPORT_NAME="createMyKernel" \
           -s ALLOW_MEMORY_GROWTH=1 \
+          -s ASSERTIONS=1 \
           --bind
 
     - name: Upload artifacts

@@ -1,4 +1,5 @@
 #include <emscripten/bind.h>
+#include <emscripten/val.h>
 #include <vector>
 #include <cstdint>
 #include "manifold/manifold.h"
@@ -6,48 +7,50 @@
 using namespace emscripten;
 using namespace manifold;
 
-// Структура для возврата в JS
 struct MeshData {
     std::vector<float> vertices;
     std::vector<uint32_t> triangles;
     float volume;
 };
 
+// ✅ Меняем сигнатуру на val
 MeshData manifoldSubtract(
-    std::vector<float> baseVerts, std::vector<uint32_t> baseTris,
-    std::vector<float> toolVerts, std::vector<uint32_t> toolTris
+    val baseVerts, val baseTris,
+    val toolVerts, val toolTris
 ) {
     MeshData result;
 
     try {
-        // 1. Создаём MeshGL из входных данных
+        // 1. Конвертируем JS массивы в C++ векторы
+        std::vector<float> baseV = convertJSArrayToNumberVector<float>(baseVerts);
+        std::vector<uint32_t> baseT = convertJSArrayToNumberVector<uint32_t>(baseTris);
+        std::vector<float> toolV = convertJSArrayToNumberVector<float>(toolVerts);
+        std::vector<uint32_t> toolT = convertJSArrayToNumberVector<uint32_t>(toolTris);
+
+        // 2. Создаём MeshGL
         MeshGL baseMeshGL;
-        baseMeshGL.vertProperties = baseVerts;
-        baseMeshGL.triVerts = baseTris;
+        baseMeshGL.vertProperties = baseV;
+        baseMeshGL.triVerts = baseT;
         baseMeshGL.numProp = 3;
 
         MeshGL toolMeshGL;
-        toolMeshGL.vertProperties = toolVerts;
-        toolMeshGL.triVerts = toolTris;
+        toolMeshGL.vertProperties = toolV;
+        toolMeshGL.triVerts = toolT;
         toolMeshGL.numProp = 3;
 
-        // 2. Создаём Manifold-объекты
+        // 3. Вычитаем
         Manifold baseManifold(baseMeshGL);
         Manifold toolManifold(toolMeshGL);
-
-        // 3. Вычитаем
         Manifold resultManifold = baseManifold - toolManifold;
 
-        // 4. Получаем результат
+        // 4. Результат
         MeshGL resultMeshGL = resultManifold.GetMeshGL();
 
-        // 5. Заполняем нашу структуру
         result.vertices = resultMeshGL.vertProperties;
         result.triangles = resultMeshGL.triVerts;
         result.volume = resultManifold.Volume();
 
     } catch (const std::exception& e) {
-        // Если что-то пошло не так — возвращаем пустоту
         result.vertices.clear();
         result.triangles.clear();
         result.volume = 0.0f;

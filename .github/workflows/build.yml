@@ -1,0 +1,54 @@
+name: Build Manifold WASM
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: latest
+
+    - name: Build Manifold + Bindings
+      run: |
+        # 1. Клонируем Manifold с зависимостями
+        git clone --recurse-submodules https://github.com/elalish/manifold.git
+
+        # 2. Собираем Manifold как статическую библиотеку
+        cd manifold
+        emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DMANIFOLD_JSBIND=OFF
+        cd build
+        emmake make -j4
+        cd ../..
+
+        # 3. Компилируем нашу обёртку и линкуем с Manifold
+        em++ manifold_bindings.cpp \
+          -I manifold/src \
+          -I manifold/build \
+          -L manifold/build \
+          -l manifold \
+          -o my-kernel.js \
+          -std=c++17 \
+          -O3 \
+          -s WASM=1 \
+          -s MODULARIZE=1 \
+          -s EXPORT_NAME="createMyKernel" \
+          -s ALLOW_MEMORY_GROWTH=1 \
+          --bind
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wasm-kernel
+        path: |
+          my-kernel.js
+          my-kernel.wasm
